@@ -75,6 +75,11 @@ export interface MesProjecao {
   dataRelatorioRecebimento?: string; // Data do relatório da administradora referente ao recebimento da comissão (YYYY-MM-DD)
   notaFiscalRecebimento?: string; // Nº ou código da Nota Fiscal relativa ao recebimento da comissão
   dataCancelamento?: string; // Data de cancelamento da parcela (YYYY-MM-DD)
+  // Controle de repasse da empresa mãe (InvestCon Master) para a empresa filha
+  repasseEmpresaPago?: boolean; // Indica se a comissão desta parcela já foi repassada/paga para a empresa filha
+  dataRepasseEmpresa?: string; // Data em que o repasse foi pago para a empresa filha (YYYY-MM-DD)
+  comprovanteRepasseEmpresa?: string; // Referência, lote ou nº do comprovante do repasse
+  observacaoRepasseEmpresa?: string; // Observação opcional do repasse
 }
 
 export type MesesAno =

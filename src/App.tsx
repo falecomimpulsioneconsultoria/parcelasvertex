@@ -51,6 +51,7 @@ import { RelatorioRetencaoLTV } from './components/RelatorioRetencaoLTV';
 import { ComissoesVendedores } from './components/ComissoesVendedores';
 import { RelatorioRecebimentos } from './components/RelatorioRecebimentos';
 import { RelatorioComissoes } from './components/RelatorioComissoes';
+import { RepasseEmpresas } from './components/RepasseEmpresas';
 import { DashboardVendedores } from './components/DashboardVendedores';
 import {
   obterVendedoresSupabase,
@@ -84,6 +85,7 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import { APP_VERSION } from './version';
 const migrarDadosStatusRecebida = async (
   vendasOriginais: LancamentoVenda[],
@@ -260,7 +262,7 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'clientes' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'configuracoes' | 'retencao_ltv' | 'conciliacao_pdf'>('dashboard');
+  const [abaAtiva, setAbaAtiva] = useState<'dashboard' | 'dashboard_vendedores' | 'vendas' | 'clientes' | 'comissoes' | 'relatorio' | 'relatorio_comissoes' | 'repasse_empresas' | 'configuracoes' | 'retencao_ltv' | 'conciliacao_pdf'>('dashboard');
   const [subAbaAtiva, setSubAbaAtiva] = useState<'regras' | 'regras_filha' | 'vendedores' | 'acessos' | 'empresas' | 'administradoras'>('regras');
 
   // Multi-tenant: empresas
@@ -292,6 +294,21 @@ function App() {
 
   // Verifica se a empresa do usuário é uma filha
   const empresaAtualEhFilha = useMemo(() => !!empresaAtual?.empresaMaeId, [empresaAtual]);
+
+  // Controle de acesso à aba de Repasse às Empresas
+  const podeGerenciarRepasse = useMemo(() => {
+    if (!usuarioLogado) return false;
+    if (isSuperMaster || usuarioLogado.role === 'financeiro_master') return true;
+    return !empresaAtualEhFilha && (usuarioLogado.role === 'master' || usuarioLogado.role === 'financeiro');
+  }, [usuarioLogado, isSuperMaster, empresaAtualEhFilha]);
+
+  const podeVerAbaRepasse = useMemo(() => {
+    if (!usuarioLogado || usuarioLogado.role === 'vendedor') return false;
+    if (isSuperMaster || usuarioLogado.role === 'financeiro_master') return true;
+    if (empresaAtualEhFilha) return true;
+    // Master/Financeiro de empresa mãe vê se tiver filhas vinculadas
+    return podeGerenciarRepasse && empresas.some(e => e.empresaMaeId === usuarioLogado.empresaId);
+  }, [usuarioLogado, isSuperMaster, empresaAtualEhFilha, podeGerenciarRepasse, empresas]);
 
   // Regras efetivas para exibição no SimuladorVendas:
   // Se for uma empresa filha, usa as regrasMaster da mãe mas sobrescreve % com os da filha.
@@ -1394,6 +1411,36 @@ function App() {
               </Tooltip>
             )}
 
+            {podeVerAbaRepasse && (
+              <Tooltip title="Repasse às Empresas" placement="right" disableHoverListener={!sidebarContraida}>
+                <Button
+                  variant={abaAtiva === 'repasse_empresas' ? 'contained' : 'text'}
+                  startIcon={!sidebarContraida ? <PaymentsIcon /> : undefined}
+                  onClick={() => setAbaAtiva('repasse_empresas')}
+                  fullWidth
+                  sx={{
+                    justifyContent: sidebarContraida ? 'center' : 'flex-start',
+                    py: 1.25,
+                    px: sidebarContraida ? 0 : 2,
+                    minWidth: sidebarContraida ? 48 : undefined,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: abaAtiva === 'repasse_empresas' ? '#ffffff' : 'text.secondary',
+                    background: abaAtiva === 'repasse_empresas' ? 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)' : 'transparent',
+                    boxShadow: abaAtiva === 'repasse_empresas' ? '0 4px 12px rgba(20, 184, 166, 0.25)' : 'none',
+                    '&:hover': {
+                      background: abaAtiva === 'repasse_empresas' ? 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)' : 'rgba(20, 184, 166, 0.08)',
+                      color: abaAtiva === 'repasse_empresas' ? '#ffffff' : '#14b8a6'
+                    }
+                  }}
+                >
+                  {sidebarContraida ? <PaymentsIcon /> : 'Repasse às Empresas'}
+                </Button>
+              </Tooltip>
+            )}
+
             {usuarioLogado?.role !== 'vendedor' && (
               <Tooltip title="Importar Relatório de Comissão (PDF)" placement="right" disableHoverListener={!sidebarContraida}>
                 <Button
@@ -1666,6 +1713,7 @@ function App() {
               {abaAtiva === 'comissoes' && 'Comissões de Corretores'}
               {abaAtiva === 'relatorio' && 'Relatório de Previsão de Recebimentos'}
               {abaAtiva === 'relatorio_comissoes' && 'Relatório de Comissões'}
+              {abaAtiva === 'repasse_empresas' && 'Repasse de Comissões às Empresas'}
               {abaAtiva === 'retencao_ltv' && 'Retenção de Clientes e LTV'}
               {abaAtiva === 'conciliacao_pdf' && 'Importação e Conciliação de Relatórios PDF'}
               {abaAtiva === 'configuracoes' && 'Configurações Administrativas'}
@@ -2095,6 +2143,20 @@ function App() {
                 onAtualizarVenda={handleAtualizarVenda}
                 podeEditarComissao={isSuperMaster || usuarioLogado?.role === 'master' || usuarioLogado?.role === 'financeiro' || usuarioLogado?.role === 'financeiro_master' || usuarioLogado?.role === 'representante'}
                 podeVerFinanceiro={podeVerFinanceiro}
+              />
+            )}
+
+            {abaAtiva === 'repasse_empresas' && podeVerAbaRepasse && (
+              <RepasseEmpresas
+                vendas={vendas}
+                empresas={empresas}
+                dataInicio={dataInicio}
+                dataFim={dataFim}
+                podeGerenciar={podeGerenciarRepasse}
+                isSuperOuFinanceiroMaster={canFilterCompany}
+                empresaAtualId={usuarioLogado?.empresaId}
+                empresaFiltroHeader={empresaFiltroMaster}
+                onAtualizarVenda={handleAtualizarVenda}
               />
             )}
 
