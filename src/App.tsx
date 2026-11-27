@@ -83,6 +83,8 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { APP_VERSION } from './version';
 const migrarDadosStatusRecebida = async (
   vendasOriginais: LancamentoVenda[],
   salvarNoSupabase: boolean = false
@@ -1141,6 +1143,26 @@ function App() {
                   >
                     Comissão & Projeção
                   </Typography>
+                  <Tooltip
+                    title={`Versão ${APP_VERSION.version} (${APP_VERSION.releaseDate}) - Build ${APP_VERSION.buildNumber}`}
+                    arrow
+                  >
+                    <Chip
+                      label={`v${APP_VERSION.version}`}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: '0.62rem',
+                        fontWeight: 800,
+                        fontFamily: 'monospace',
+                        color: theme.palette.primary.main,
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+                        border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)'}`,
+                        mt: 0.3,
+                        cursor: 'default'
+                      }}
+                    />
+                  </Tooltip>
                 </Box>
               )}
             </Box>
@@ -1468,6 +1490,78 @@ function App() {
 
           {/* Rodapé da Sidebar - Configurações e Perfil do Usuário */}
           <Box sx={{ p: sidebarContraida ? 1 : 2, borderTop: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`, transition: 'all 0.2s' }}>
+            {/* Versionador no rodapé da barra lateral */}
+            <Tooltip
+              arrow
+              placement="right"
+              title={
+                <Box sx={{ p: 0.5 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', mb: 0.5 }}>
+                    APEX v{APP_VERSION.version} (Build {APP_VERSION.buildNumber})
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.8 }}>
+                    Atualizado em {APP_VERSION.releaseDate}
+                  </Typography>
+                  {APP_VERSION.notes.map((nota, i) => (
+                    <Typography key={i} variant="caption" sx={{ display: 'block', fontSize: '0.68rem', mb: 0.3 }}>
+                      • {nota}
+                    </Typography>
+                  ))}
+                </Box>
+              }
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: sidebarContraida ? 'center' : 'space-between',
+                  px: sidebarContraida ? 0 : 1,
+                  py: 0.5,
+                  mb: 1.2,
+                  borderRadius: 1.5,
+                  bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+                  border: `1px solid ${theme.palette.mode === 'dark' ? '#1f2937' : '#e5e7eb'}`,
+                  cursor: 'pointer'
+                }}
+              >
+                {!sidebarContraida ? (
+                  <>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                      <InfoOutlinedIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
+                      <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.68rem', color: 'text.secondary' }}>
+                        Versão do Sistema
+                      </Typography>
+                    </Box>
+                    <Chip
+                      size="small"
+                      label={`v${APP_VERSION.version}`}
+                      sx={{
+                        height: 18,
+                        fontSize: '0.62rem',
+                        fontWeight: 800,
+                        fontFamily: 'monospace',
+                        color: '#6366f1',
+                        bgcolor: 'rgba(99, 102, 241, 0.12)'
+                      }}
+                    />
+                  </>
+                ) : (
+                  <Chip
+                    size="small"
+                    label={`v${APP_VERSION.version}`}
+                    sx={{
+                      height: 16,
+                      fontSize: '0.58rem',
+                      fontWeight: 800,
+                      fontFamily: 'monospace',
+                      color: '#6366f1',
+                      bgcolor: 'rgba(99, 102, 241, 0.12)',
+                      px: 0
+                    }}
+                  />
+                )}
+              </Box>
+            </Tooltip>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: sidebarContraida ? 'center' : 'space-between', mb: 2, px: sidebarContraida ? 0 : 1 }}>
               {!sidebarContraida && (
                 <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>

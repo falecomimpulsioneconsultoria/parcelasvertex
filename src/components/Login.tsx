@@ -16,6 +16,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import { APP_VERSION } from '../version';
 import { supabase, obterUsuariosLocais } from '../utils/supabase';
 import type { Usuario } from '../types';
 
@@ -376,6 +377,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               >
                 {loading ? <CircularProgress size={24} sx={{ color: '#ffffff' }} /> : 'Entrar no Sistema'}
               </Button>
+
+              <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>
+                  Versão {APP_VERSION.version} • Build {APP_VERSION.buildNumber} ({APP_VERSION.releaseDate})
+                </Typography>
+              </Box>
             </Box>
           </form>
         </CardContent>
