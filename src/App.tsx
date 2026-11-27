@@ -1639,7 +1639,7 @@ function App() {
           minWidth: 0, 
           display: 'flex', 
           flexDirection: 'column', 
-          pb: 6,
+          pb: abaAtiva === 'conciliacao_pdf' ? 0 : 6,
           transition: 'margin-left 0.2s ease-in-out'
         }}>
           {/* Header Superior da Área de Conteúdo */}
@@ -1935,7 +1935,7 @@ function App() {
           </Box>
 
           {/* Barra de Atalhos Rápidos de Período */}
-          {abaAtiva !== 'configuracoes' && (
+          {abaAtiva !== 'configuracoes' && abaAtiva !== 'conciliacao_pdf' && (
             <Box
               sx={{
                 px: 4,
@@ -2005,7 +2005,14 @@ function App() {
           )}
 
           {/* Container de Informações e Views */}
-          <Container maxWidth={false} sx={{ mt: 4, px: { xs: 2, md: 4 } }}>
+          <Container
+            maxWidth={false}
+            disableGutters={abaAtiva === 'conciliacao_pdf'}
+            sx={{
+              mt: abaAtiva === 'conciliacao_pdf' ? 0 : 4,
+              px: abaAtiva === 'conciliacao_pdf' ? 0 : { xs: 2, md: 4 },
+            }}
+          >
                {abaAtiva === 'dashboard' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* KPI Section */}

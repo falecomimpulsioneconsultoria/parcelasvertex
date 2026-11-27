@@ -42,6 +42,8 @@ import FolderSpecialIcon from '@mui/icons-material/FolderSpecial';
 import BusinessIcon from '@mui/icons-material/Business';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -233,6 +235,9 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   // Modo colar texto manual
   const [mostrarColarTexto, setMostrarColarTexto] = useState(false);
   const [textoManualInput, setTextoManualInput] = useState('');
+
+  // Controle de recolhimento da barra lateral de PDFs para maximizar o espaço da tabela
+  const [barraLateralPdfRecolhida, setBarraLateralPdfRecolhida] = useState(false);
 
   // Vendas reais (não espelho) para conciliação direta, abrangendo todas as empresas (Vertex, Winvest, Shazam)
   const vendasPrincipais = useMemo(() => {
@@ -1576,8 +1581,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          px: 3,
-          py: 1.8,
+          px: 2.5,
+          py: 1.25,
           borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
           bgcolor: isDark ? '#111827' : '#f8fafc',
           flexShrink: 0,
@@ -1691,65 +1696,106 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           minHeight: 0,
         }}
       >
-        {/* BARRA LATERAL ESQUERDA: Lista de todos os PDFs Carregados */}
+        {/* BARRA LATERAL ESQUERDA: Lista de todos os PDFs Carregados (recolhível para maximizar espaço) */}
         <Box
           sx={{
-            width: { xs: '100%', md: 300 },
+            width: { xs: '100%', md: barraLateralPdfRecolhida ? 48 : 260 },
             flexShrink: 0,
             borderRight: { md: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}` },
             borderBottom: { xs: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`, md: 'none' },
             bgcolor: isDark ? '#0b0f19' : '#f8fafc',
             display: 'flex',
             flexDirection: 'column',
-            maxHeight: { xs: 220, md: '100%' },
+            maxHeight: { xs: barraLateralPdfRecolhida ? 48 : 220, md: '100%' },
+            transition: 'width 0.2s ease',
+            overflow: 'hidden',
           }}
         >
           {/* Cabeçalho da Barra Lateral */}
           <Box
             sx={{
-              p: 2,
+              p: barraLateralPdfRecolhida ? 1 : 1.5,
               borderBottom: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
               display: 'flex',
               flexDirection: 'column',
-              gap: 1.2,
+              alignItems: barraLateralPdfRecolhida ? 'center' : 'stretch',
+              gap: 1,
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                <FolderSpecialIcon sx={{ color: '#0ea5e9', fontSize: 19 }} />
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '0.84rem' }}
-                >
-                  PDFs Carregados ({relatoriosSalvos.length})
-                </Typography>
-              </Box>
-            </Box>
-
-            <Button
-              fullWidth
-              variant="contained"
-              size="small"
-              startIcon={<UploadFileIcon />}
-              onClick={() => fileInputRef.current?.click()}
+            <Box
               sx={{
-                borderRadius: 2,
-                fontWeight: 700,
-                py: 0.8,
-                textTransform: 'none',
-                background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: barraLateralPdfRecolhida ? 'center' : 'space-between',
+                width: '100%',
               }}
             >
-              + Carregar Novo PDF
-            </Button>
+              {!barraLateralPdfRecolhida && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                  <FolderSpecialIcon sx={{ color: '#0ea5e9', fontSize: 18 }} />
+                  <Typography
+                    variant="subtitle2"
+                    noWrap
+                    sx={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '0.8rem' }}
+                  >
+                    PDFs Carregados ({relatoriosSalvos.length})
+                  </Typography>
+                </Box>
+              )}
+              <Tooltip
+                title={
+                  barraLateralPdfRecolhida
+                    ? 'Expandir lista de PDFs'
+                    : 'Recolher lista para ampliar a tabela'
+                }
+                placement="right"
+              >
+                <IconButton
+                  size="small"
+                  onClick={() => setBarraLateralPdfRecolhida((prev) => !prev)}
+                  sx={{
+                    p: 0.4,
+                    color: 'text.secondary',
+                    bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)',
+                    '&:hover': { color: '#0ea5e9', bgcolor: 'rgba(14,165,233,0.1)' },
+                  }}
+                >
+                  {barraLateralPdfRecolhida ? (
+                    <ChevronRightIcon sx={{ fontSize: 18 }} />
+                  ) : (
+                    <ChevronLeftIcon sx={{ fontSize: 18 }} />
+                  )}
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {!barraLateralPdfRecolhida && (
+              <Button
+                fullWidth
+                variant="contained"
+                size="small"
+                startIcon={<UploadFileIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                sx={{
+                  borderRadius: 2,
+                  fontWeight: 700,
+                  py: 0.7,
+                  textTransform: 'none',
+                  background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                }}
+              >
+                + Carregar Novo PDF
+              </Button>
+            )}
           </Box>
 
           {/* Lista de Relatórios PDF na Barra Lateral */}
+          {!barraLateralPdfRecolhida && (
           <Box
             sx={{
               flex: 1,
               overflowY: 'auto',
-              p: 1.5,
+              p: 1.25,
               display: 'flex',
               flexDirection: 'column',
               gap: 1,
@@ -1903,17 +1949,19 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
               })
             )}
           </Box>
+          )}
         </Box>
 
         {/* PAINEL PRINCIPAL DIREITO: Detalhes do Relatório Selecionado */}
         <Box
           sx={{
             flex: 1,
-            p: 2.5,
+            minWidth: 0,
+            p: 1.75,
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 1.5,
           }}
         >
           {!dadosPdf ? (
@@ -3306,8 +3354,8 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       {/* Rodapé com Ações — Botão "Receber Parcelas" ativo somente com 0 divergências */}
       <Box
         sx={{
-          px: 3,
-          py: 2,
+          px: 2.5,
+          py: 1.25,
           borderTop: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
           bgcolor: isDark ? '#111827' : '#f8fafc',
           display: 'flex',
@@ -3420,17 +3468,14 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         elevation={0}
         sx={{
           width: '100%',
-          height: { xs: 'auto', md: 'calc(100vh - 170px)' },
-          minHeight: 700,
+          height: { xs: 'auto', md: 'calc(100vh - 70px)' },
+          minHeight: { xs: 600, md: 'calc(100vh - 70px)' },
           display: 'flex',
           flexDirection: 'column',
-          borderRadius: 3,
-          border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+          borderRadius: 0,
+          border: 'none',
           bgcolor: isDark ? '#0f172a' : '#ffffff',
           overflow: 'hidden',
-          boxShadow: isDark
-            ? '0 10px 30px -5px rgba(0, 0, 0, 0.5)'
-            : '0 10px 30px -5px rgba(0, 0, 0, 0.05)',
         }}
       >
         {conteudoModal}
