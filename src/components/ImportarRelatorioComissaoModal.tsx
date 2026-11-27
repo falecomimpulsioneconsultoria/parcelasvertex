@@ -123,6 +123,10 @@ export interface ItemConciliacao {
   jaRecebidaSistema?: boolean;
   comissaoSistemaOriginal?: number;
   comissaoSistema?: number;
+  comissaoFilhaSistema?: number;
+  comissaoEspelhoSistema?: number;
+  empresaMaeEspelhoId?: string;
+  temEspelhoMae?: boolean;
   valorBaseSistemaOriginal?: number;
   valorBaseSistema?: number;
   dataVendaSistemaOriginal?: string;
@@ -257,6 +261,43 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       }
     }
     return Array.from(mapa.values());
+  }, [vendas, open, vendasAtualizadasSessao]);
+
+  // Mapa de vendas espelho (diferencial da empresa mãe para empresas filhas como Shazam) indexado por vendaOrigemId
+  const vendasEspelhoPorOrigemId = useMemo(() => {
+    const mapaPorId = new Map<string, LancamentoVenda>();
+    for (const v of vendas) {
+      if (v && v.id && v.isVendaEspelho && v.vendaOrigemId) {
+        mapaPorId.set(v.id, vendasAtualizadasSessao[v.id] || v);
+      }
+    }
+    try {
+      const salvas = localStorage.getItem('apex_lancamentos_vendas');
+      if (salvas) {
+        const todas: LancamentoVenda[] = JSON.parse(salvas);
+        for (const v of todas) {
+          if (v && v.id && v.isVendaEspelho && v.vendaOrigemId && !mapaPorId.has(v.id)) {
+            mapaPorId.set(v.id, vendasAtualizadasSessao[v.id] || v);
+          }
+        }
+      }
+    } catch {
+      // Ignora erro de leitura do localStorage
+    }
+    for (const [idSessao, vSessao] of Object.entries(vendasAtualizadasSessao)) {
+      if (vSessao.isVendaEspelho && vSessao.vendaOrigemId) {
+        mapaPorId.set(idSessao, vSessao);
+      }
+    }
+
+    const porOrigem = new Map<string, LancamentoVenda[]>();
+    for (const esp of mapaPorId.values()) {
+      if (!esp.vendaOrigemId) continue;
+      const lista = porOrigem.get(esp.vendaOrigemId) || [];
+      lista.push(esp);
+      porOrigem.set(esp.vendaOrigemId, lista);
+    }
+    return porOrigem;
   }, [vendas, open, vendasAtualizadasSessao]);
 
   // Verifica o status (Processado vs Não Processado) de qualquer relatório salvo
@@ -576,7 +617,20 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         celula.status,
         celula.dataVencimento || `${mesChaveParcela}-15`
       );
-      const comissaoSistemaOriginal = Number((celula.comissaoGerada || 0).toFixed(2));
+      const espelhosVinculados = vendasEspelhoPorOrigemId.get(vendaEncontrada.id) || [];
+      const comissaoFilhaSistema = Number((celula.comissaoGerada || 0).toFixed(2));
+      const comissaoEspelhoSistema = Number(
+        espelhosVinculados
+          .reduce((acc, esp) => acc + (esp.projecaoMensal?.[mesChaveParcela]?.comissaoGerada || 0), 0)
+          .toFixed(2)
+      );
+      const empresaMaeEspelhoId = espelhosVinculados[0]?.empresaId;
+      const temEspelhoMae = espelhosVinculados.length > 0 && comissaoEspelhoSistema > 0;
+
+      // Para empresas filhas (ex: Shazam), o PDF da administradora vem com o valor cheio (Tabela Master = Filha + Espelho da Mãe)
+      const comissaoSistemaOriginal = Number(
+        (comissaoFilhaSistema + comissaoEspelhoSistema).toFixed(2)
+      );
       const valorBaseSistemaOriginal = Number((vendaEncontrada.valorVenda || 0).toFixed(2));
       const dataVendaSistemaOriginal = vendaEncontrada.dataVenda || '';
       const jaRecebida = !!celula.recebida;
@@ -632,6 +686,10 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
           jaRecebidaSistema: true,
           comissaoSistemaOriginal,
           comissaoSistema: comissaoSistemaOriginal,
+          comissaoFilhaSistema,
+          comissaoEspelhoSistema,
+          empresaMaeEspelhoId,
+          temEspelhoMae,
           valorBaseSistemaOriginal,
           valorBaseSistema: valorBaseSistemaOriginal,
           dataVendaSistemaOriginal,
@@ -646,11 +704,14 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
       const difComissao = Number((item.valorComissao - comissaoSistema).toFixed(2));
       const comissaoAceita = !!ajustesPendentes.divergenciasAceitas?.[`${item.id}_COMISSAO`];
       if (Math.abs(difComissao) > 0.05 && !comissaoAceita) {
+        const detalheComposicao = temEspelhoMae
+          ? ` (${obterNomeEmpresa(vendaEncontrada.empresaId)}: ${formatarMoeda(comissaoFilhaSistema)} + Dif. ${obterNomeEmpresa(empresaMaeEspelhoId)}: ${formatarMoeda(comissaoEspelhoSistema)})`
+          : '';
         divergencias.push({
           tipo: 'VALOR_COMISSAO_DIVERGENTE',
           severidade: 'warning',
           titulo: 'Comissão divergente',
-          descricao: `Comissão no PDF (${formatarMoeda(item.valorComissao)}) difere do valor no sistema (${formatarMoeda(comissaoSistemaOriginal)}). Diferença: ${difComissao > 0 ? '+' : ''}${formatarMoeda(difComissao)}.`,
+          descricao: `Comissão no PDF (${formatarMoeda(item.valorComissao)}) difere do total no sistema (${formatarMoeda(comissaoSistemaOriginal)}${detalheComposicao}). Diferença: ${difComissao > 0 ? '+' : ''}${formatarMoeda(difComissao)}.`,
           valorPdf: formatarMoeda(item.valorComissao),
           valorSistema: formatarMoeda(comissaoSistemaOriginal),
           diferencaValor: difComissao,
@@ -730,6 +791,10 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         jaRecebidaSistema: false,
         comissaoSistemaOriginal,
         comissaoSistema,
+        comissaoFilhaSistema,
+        comissaoEspelhoSistema,
+        empresaMaeEspelhoId,
+        temEspelhoMae,
         valorBaseSistemaOriginal,
         valorBaseSistema,
         dataVendaSistemaOriginal,
@@ -745,6 +810,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
   }, [
     dadosPdf,
     vendasPrincipais,
+    vendasEspelhoPorOrigemId,
     vinculosManuais,
     ajustesPendentes,
     corrigirDatasDivergentesAutomaticamente,
@@ -1062,6 +1128,7 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
     );
 
     // Resumo detalhado por empresa dona dos contratos (Vertex, Winvest, Shazam, etc.)
+    // Para empresas filhas com venda espelho (ex: Shazam), separa o valor da filha e o diferencial da empresa mãe
     const mapaEmpresas = new Map<
       string,
       {
@@ -1071,37 +1138,74 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         qtd: number;
         qtdRecebidos: number;
         valorComissaoPdf: number;
+        valorComissaoPdfBruto: number;
         valorComissaoSistema: number;
+        valorDiferencialRepassado: number;
+        valorDiferencialRecebido: number;
         valorBase: number;
       }
     >();
+
+    const obterOuCriarEmpResumo = (empId: string) => {
+      let item = mapaEmpresas.get(empId);
+      if (!item) {
+        item = {
+          id: empId,
+          nome: obterNomeEmpresa(empId),
+          cor: obterCorEmpresa(empId),
+          qtd: 0,
+          qtdRecebidos: 0,
+          valorComissaoPdf: 0,
+          valorComissaoPdfBruto: 0,
+          valorComissaoSistema: 0,
+          valorDiferencialRepassado: 0,
+          valorDiferencialRecebido: 0,
+          valorBase: 0,
+        };
+        mapaEmpresas.set(empId, item);
+      }
+      return item;
+    };
 
     for (const ic of itensConciliados) {
       const vendaRef = ic.vendaEncontrada || ic.vendaSugerida;
       if (vendaRef) {
         const empId = vendaRef.empresaId || 'emp_vertex';
-        const nome = obterNomeEmpresa(empId);
-        const cor = obterCorEmpresa(empId);
-        const atual = mapaEmpresas.get(empId) || {
-          id: empId,
-          nome,
-          cor,
-          qtd: 0,
-          qtdRecebidos: 0,
-          valorComissaoPdf: 0,
-          valorComissaoSistema: 0,
-          valorBase: 0,
-        };
+        const atual = obterOuCriarEmpResumo(empId);
+        const difMae =
+          ic.temEspelhoMae && ic.comissaoEspelhoSistema && ic.comissaoEspelhoSistema > 0
+            ? ic.comissaoEspelhoSistema
+            : 0;
+        const parteFilhaPdf = Number(Math.max(0, ic.itemPdf.valorComissao - difMae).toFixed(2));
+        const parteFilhaSistema =
+          ic.comissaoFilhaSistema !== undefined
+            ? ic.comissaoFilhaSistema
+            : Number(
+                Math.max(0, (ic.comissaoSistema ?? ic.itemPdf.valorComissao) - difMae).toFixed(2)
+              );
+
         atual.qtd += 1;
         if (ic.jaRecebidaSistema) atual.qtdRecebidos += 1;
-        atual.valorComissaoPdf = Number(
-          (atual.valorComissaoPdf + ic.itemPdf.valorComissao).toFixed(2)
+        atual.valorComissaoPdf = Number((atual.valorComissaoPdf + parteFilhaPdf).toFixed(2));
+        atual.valorComissaoPdfBruto = Number(
+          (atual.valorComissaoPdfBruto + ic.itemPdf.valorComissao).toFixed(2)
         );
         atual.valorComissaoSistema = Number(
-          (atual.valorComissaoSistema + (ic.comissaoSistema ?? ic.itemPdf.valorComissao)).toFixed(2)
+          (atual.valorComissaoSistema + parteFilhaSistema).toFixed(2)
+        );
+        atual.valorDiferencialRepassado = Number(
+          (atual.valorDiferencialRepassado + difMae).toFixed(2)
         );
         atual.valorBase = Number((atual.valorBase + ic.itemPdf.valorBase).toFixed(2));
-        mapaEmpresas.set(empId, atual);
+
+        // Credita o diferencial da tabela Master no card da empresa mãe (ex: Vertex)
+        if (difMae > 0 && ic.empresaMaeEspelhoId && ic.empresaMaeEspelhoId !== empId) {
+          const mae = obterOuCriarEmpResumo(ic.empresaMaeEspelhoId);
+          mae.valorComissaoPdf = Number((mae.valorComissaoPdf + difMae).toFixed(2));
+          mae.valorComissaoPdfBruto = Number((mae.valorComissaoPdfBruto + difMae).toFixed(2));
+          mae.valorComissaoSistema = Number((mae.valorComissaoSistema + difMae).toFixed(2));
+          mae.valorDiferencialRecebido = Number((mae.valorDiferencialRecebido + difMae).toFixed(2));
+        }
       }
     }
     const porEmpresa = Array.from(mapaEmpresas.values()).sort(
@@ -1207,13 +1311,23 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
             ? 'Paga'
             : celulaAtual.status;
 
-        // Aplica comissão ajustada no rascunho ou pelo switch global
+        // Aplica comissão ajustada no rascunho ou pelo switch global.
+        // Para empresas filhas com venda espelho (ex: Shazam), NUNCA sobrescreve com o valor cheio do PDF:
+        // desconta o diferencial da empresa mãe para preservar a comissão menor definida nas tabelas da filha.
         const comissaoAjustadaItem = ajustesPendentes.comissoesAjustadas?.[idItem];
-        const novaComissao =
+        const difEspelhoItem =
+          itemConc.temEspelhoMae && itemConc.comissaoEspelhoSistema
+            ? itemConc.comissaoEspelhoSistema
+            : 0;
+        const valorAlvoTotal =
           comissaoAjustadaItem !== undefined
             ? comissaoAjustadaItem
             : atualizarComissaoParaValorPdf
             ? itemConc.itemPdf.valorComissao
+            : undefined;
+        const novaComissao =
+          valorAlvoTotal !== undefined
+            ? Number(Math.max(0, valorAlvoTotal - difEspelhoItem).toFixed(2))
             : celulaAtual.comissaoGerada;
 
         // Aplica valor base ajustado no rascunho (se houver)
@@ -1396,7 +1510,11 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
         `${ic.itemPdf.dataVendaBr}\nSist: ${ic.dataVendaSistema ? formatarData(ic.dataVendaSistema) : '—'}`,
         `${formatarMoeda(ic.itemPdf.valorBase)}\nSist: ${ic.valorBaseSistema !== undefined ? formatarMoeda(ic.valorBaseSistema) : '—'}`,
         formatarMoeda(ic.itemPdf.valorComissao),
-        ic.comissaoSistema !== undefined ? formatarMoeda(ic.comissaoSistema) : '—',
+        ic.comissaoSistema !== undefined
+          ? ic.temEspelhoMae && (ic.comissaoEspelhoSistema || 0) > 0 && ic.vendaEncontrada
+            ? `${formatarMoeda(ic.comissaoSistema)}\n(${obterNomeEmpresa(ic.vendaEncontrada.empresaId)}: ${formatarMoeda(ic.comissaoFilhaSistema || 0)} + Dif.: ${formatarMoeda(ic.comissaoEspelhoSistema || 0)})`
+            : formatarMoeda(ic.comissaoSistema)
+          : '—',
         ic.comissaoSistema !== undefined
           ? `${dif > 0 ? '+' : ''}${formatarMoeda(dif)}`
           : '—',
@@ -2201,6 +2319,37 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                             {formatarMoeda(emp.valorComissaoPdf)}
                           </Typography>
 
+                          {emp.valorDiferencialRepassado > 0 && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                display: 'block',
+                                color: 'text.secondary',
+                                fontSize: '0.63rem',
+                                fontWeight: 600,
+                                mt: 0.2,
+                              }}
+                            >
+                              PDF cheio: {formatarMoeda(emp.valorComissaoPdfBruto)} · Dif. Mãe:{' '}
+                              {formatarMoeda(emp.valorDiferencialRepassado)}
+                            </Typography>
+                          )}
+
+                          {emp.valorDiferencialRecebido > 0 && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                display: 'block',
+                                color: '#10b981',
+                                fontSize: '0.63rem',
+                                fontWeight: 700,
+                                mt: 0.2,
+                              }}
+                            >
+                              Inclui +{formatarMoeda(emp.valorDiferencialRecebido)} dif. filhas
+                            </Typography>
+                          )}
+
                           <Box
                             sx={{
                               display: 'flex',
@@ -2770,6 +2919,27 @@ export const ImportarRelatorioComissaoModal: React.FC<ImportarRelatorioComissaoM
                                 >
                                   {formatarMoeda(ic.comissaoSistema)}
                                 </Typography>
+                                {ic.temEspelhoMae && (ic.comissaoEspelhoSistema || 0) > 0 && vendaEncontrada && (
+                                  <Tooltip
+                                    title={`Tabela ${obterNomeEmpresa(vendaEncontrada.empresaId)}: ${formatarMoeda(ic.comissaoFilhaSistema || 0)} + Diferencial ${obterNomeEmpresa(ic.empresaMaeEspelhoId)}: ${formatarMoeda(ic.comissaoEspelhoSistema || 0)}`}
+                                    arrow
+                                  >
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        color: 'text.secondary',
+                                        fontWeight: 600,
+                                        fontSize: '0.62rem',
+                                        display: 'block',
+                                        lineHeight: 1.25,
+                                      }}
+                                    >
+                                      {obterNomeEmpresa(vendaEncontrada.empresaId)}:{' '}
+                                      {formatarMoeda(ic.comissaoFilhaSistema || 0)} + Dif.:{' '}
+                                      {formatarMoeda(ic.comissaoEspelhoSistema || 0)}
+                                    </Typography>
+                                  </Tooltip>
+                                )}
                                 {ic.comissaoAjustadaPendente && (
                                   <Typography
                                     variant="caption"
